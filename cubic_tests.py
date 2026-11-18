@@ -3,15 +3,19 @@ import time
 from GD import GDSolvesCubic
 from NewtonCR_NC import NewtonCR_NC
 from GLRT import glrt, cubic_f
+from cubic_func import random_matrix_functional
+
+def Av(A , v):
+    if callable(A):
+        return A(v)
+    return torch.mv(A, v)
 
 # Problem parameters
-n = 100
-fk = torch.randn(1, dtype = torch.float64)
-gk = torch.randn(n, dtype = torch.float64)
-hk = torch.randn(n,n, dtype = torch.float64)
-#hk = hk.T @ hk
-hk = (hk.T + hk) / 2
-M = 1e3
+n = 100000
+fk = 0.0
+gk = torch.randn(n, dtype = torch.float64) * 1e-3
+hk = lambda v : random_matrix_functional(10, n, v, 1e-6, "indef", seed=43)
+M = 0.1
 
 start = time.time()
 GDSolvesCubic(fk, gk, hk, M, eps = 1e-6, TMax = 2000)
@@ -55,7 +59,7 @@ glrt.load_options(options)
 
 # Problem parameters for GLRT
 status = 1
-hvk = torch.mv(hk, v)
+hvk = Av(hk, v)
 r = gk.numpy()
 v = v.numpy()
 hvk = hvk.numpy()
@@ -96,4 +100,5 @@ print("Time taken for GLRT: ", end - start)
 
 cf = fk + torch.dot(torch.tensor(gk), torch.tensor(x)) + torch.dot(torch.tensor(hvk), torch.tensor(x)) / 2 + M * (torch.norm(torch.tensor(x)) ** 3) / 3
 print("Function value: ", cf)
+
 

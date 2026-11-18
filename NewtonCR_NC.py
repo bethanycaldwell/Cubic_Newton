@@ -10,6 +10,7 @@ def NewtonCR_NC(fk, gk, hk, alpha0, alpha_npc, M, gradtol, maxite, restol, inmax
         f.write(f"test_NewtonCR_NC.py output: \n")
     for k in range(maxite):
         pk, inite, dtype = CR_NPC(chk, -cgk, restol, inmaxite)
+        print("dtype: ", dtype, "inner iterations: ", inite)
         if dtype == "SOL" or dtype == "MAX":
             alphak, lineite = backwardArmijo(lambda x : cubic_f(fk, gk, hk, x, M, "0"), 
                                                         xk, cfk, cgk, alpha0, pk, 
@@ -26,8 +27,8 @@ def NewtonCR_NC(fk, gk, hk, alpha0, alpha_npc, M, gradtol, maxite, restol, inmax
         with open("Results/Results_NewtonCR_NC.txt","a") as f:
             f.write(f"Dtype: {dtype}, Function value: {cfk}, Gradient norm (relative): {torch.norm(cgk)/gknorm}, Outer iter: {k}, Inner iter: {inite}, Step size: {alphak}\n")
 
-
 def cubic_f(fk, gk, hk, y, M, order = "01"):
+
     """
     Compute the cubic regularized function value and gradient at point y.
     
@@ -51,9 +52,9 @@ def cubic_f(fk, gk, hk, y, M, order = "01"):
     if "012" == order:
         cg = gk + hk_y + M * norm_y * y / 2
         if norm_y == 0:
-            ch = hk
+            ch = lambda v : Av(hk, v)
         else:
-            ch = hk + M * (torch.outer(y, y) / (2 * norm_y) + norm_y * torch.eye(len(y)) / 2) 
+            ch = lambda v : Av(hk, v) + M * (torch.inner(y, v) * y / norm_y + norm_y * v) / 2
         return cf, cg, ch
 
 def Av(A, v):
@@ -63,22 +64,22 @@ def Av(A, v):
 
 if __name__ == "__main__":
     import torch
-    n = 100
-    fk = torch.randn(1, dtype = torch.float64)
-    gk = torch.randn(n, dtype = torch.float64)
-    hk = torch.randn(n,n, dtype = torch.float64)
-    #hk = hk.T @ hk
-    hk = (hk.T + hk) / 2
-    M = 10
+    from cubic_func import random_matrix_functional
+    torch.manual_seed(42)
+    n = 100000
+    gk = torch.randn(n, dtype = torch.float64) * 1e-3
+    hk = lambda v : random_matrix_functional(10, n, v, 1e-6, "indef", seed=43)
+    M = 0.1
+
     alpha0 = 1
     alpha_npc = 1
     gradtol = 1e-6
     maxite = 100
-    restol = 1e-2
+    restol = 0.1
     inmaxite = 1000
     lineMaxite = 100
     lineBetaB = 1e-4
     lineRho = 0.5
     lineBetaFB = 1e-4
 
-    NewtonCR_NC(fk, gk, hk, alpha0, alpha_npc, M, gradtol, maxite, restol, inmaxite, lineMaxite, lineBetaB, lineRho, lineBetaFB)
+    NewtonCR_NC(0.0, gk, hk, alpha0, alpha_npc, M, gradtol, maxite, restol, inmaxite, lineMaxite, lineBetaB, lineRho, lineBetaFB)
