@@ -6,26 +6,41 @@ def NewtonCR_NC(fk, gk, hk, alpha0, alpha_npc, M, gradtol, maxite, restol, inmax
     xk = torch.zeros_like(gk)
     gknorm = torch.norm(gk)
     cfk, cgk, chk = cubic_f(fk, gk, hk, xk, M, "012")
-    with open("Results/Results_NewtonCR_NC.txt","w") as f:
-        f.write(f"test_NewtonCR_NC.py output: \n")
+    oracle = 1
+    #with open("Results/Results_NewtonCR_NC.txt","w") as f:
+    #    f.write(f"test_NewtonCR_NC.py output: \n")
+    reg = 0.01
     for k in range(maxite):
-        pk, inite, dtype = CR_NPC(chk, -cgk, restol, inmaxite)
-        print("dtype: ", dtype, "inner iterations: ", inite)
+        pk, inite, dtype, neg_eig, normrsq = CR_NPC(lambda v : Av(chk, v) + min(reg, torch.norm(cgk)) * v, -cgk, restol, inmaxite)
+        reg -= neg_eig
+        oracle += inite
         if dtype == "SOL" or dtype == "MAX":
+            #if k == 0:
+                #alphak = torch.dot(cgk, pk) + torch.sqrt(torch.dot(cgk, pk) ** 2 - 2 * M * torch.(hk,)) / (M * torch.dot(pk, pk))
             alphak, lineite = backwardArmijo(lambda x : cubic_f(fk, gk, hk, x, M, "0"), 
                                                         xk, cfk, cgk, alpha0, pk, 
                                                         lineBetaB, lineRho, lineMaxite)
+            
         else:
-            alphak, lineite = backForwardArmijo(lambda x : cubic_f(fk, gk, hk, x, M, "0"), 
-                                                            xk, cfk, cgk, alpha_npc, pk, 
-                                                            lineBetaFB, lineRho, lineMaxite)
+            if k == 0:
+                alphak = (-neg_eig + torch.sqrt(neg_eig ** 2 + 2 * M * torch.sqrt(normrsq))) / M
+                lineite = 0
+            else:
+                alphak, lineite = backForwardArmijo(lambda x : cubic_f(fk, gk, hk, x, M, "0"), 
+                                                                xk, cfk, cgk, alpha_npc, pk, 
+                                                                lineBetaFB, lineRho, lineMaxite)
             alpha_npc = alphak
-        if torch.norm(cgk)/gknorm < gradtol:
-            return xk, cfk, cgk, chk, alphak, k, inite, dtype
+        
+        oracle += lineite
         xk += alphak * pk
         cfk, cgk, chk = cubic_f(fk, gk, hk, xk, M, "012")
-        with open("Results/Results_NewtonCR_NC.txt","a") as f:
-            f.write(f"Dtype: {dtype}, Function value: {cfk}, Gradient norm (relative): {torch.norm(cgk)/gknorm}, Outer iter: {k}, Inner iter: {inite}, Step size: {alphak}\n")
+        print(f"NewtonCR_NC ite: {k}, f: {cfk}, |g|: {torch.norm(cgk, torch.inf)}, Oracle: {oracle}, alpha: {alphak}, reg: {reg}, dtype: {dtype}")
+        if torch.norm(cgk, torch.inf) < gradtol or alphak < 1e-3:
+            return xk, k
+
+        
+        #with open("Results/Results_NewtonCR_NC.txt","a") as f:
+        #    f.write(f"Dtype: {dtype}, Function value: {cfk}, Gradient norm (relative): {torch.norm(cgk)/gknorm}, Outer iter: {k}, Inner iter: {inite}, Step size: {alphak}\n")
 
 def cubic_f(fk, gk, hk, y, M, order = "01"):
 
@@ -66,7 +81,7 @@ if __name__ == "__main__":
     import torch
     from cubic_func import random_matrix_functional
     torch.manual_seed(42)
-    n = 100000
+    n = 1000000
     gk = torch.randn(n, dtype = torch.float64) * 1e-3
     hk = lambda v : random_matrix_functional(10, n, v, 1e-6, "indef", seed=43)
     M = 0.1

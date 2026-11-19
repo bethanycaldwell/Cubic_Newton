@@ -7,14 +7,14 @@ def random_matrix_functional(n, d, v, diag, mattype, seed):
     """
     torch.manual_seed(seed)
     if mattype == "indef":
-        linear_comb = torch.randn(n, dtype=torch.float64) * 0.1
+        linear_comb = torch.randn(n, dtype=torch.float64)
     elif mattype == "posdef":
-        linear_comb = torch.rand(n, dtype=torch.float64) * 0.1
+        linear_comb = torch.rand(n, dtype=torch.float64)
     else:
         raise ValueError("Invalid matrix type. Use 'indef' or 'posdef'.")
     w = torch.zeros(d, dtype=torch.float64)
     for i in range(n):
-        a = torch.randn(d, dtype=torch.float64) * 0.1
+        a = torch.randn(d, dtype=torch.float64) * 1e-3
         w += linear_comb[i] * torch.inner(a, v) * a
     w += diag * v
     return w
